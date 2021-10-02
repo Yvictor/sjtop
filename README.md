@@ -1,6 +1,6 @@
 # sjtop (WIP)
 
-sjtop is a TUI (Text User Interface) for Shioaji using Textual to develop.
+sjtop is a TUI (Terminal User Interface) for Shioaji using Textual to develop.
 
 NOTE: This project is currently a work in progress
 

@@ -1,9 +1,11 @@
 [tool.poetry]
 name = "sjtop"
-version = "0.1.0"
-description = ""
-authors = ["Yvictor"]
+version = "0.1.1"
+homepage = "https://github.com/yvictor/sjtop"
+description = "Terminal User Interface for Shioaji"
+authors = ["Yvictor <yvictor3141@gmail.com>"]
 license = "MIT"
+readme = "README.md"
 
 [tool.poetry.scripts]
 sjtop = 'sjtop.__main__:main'
