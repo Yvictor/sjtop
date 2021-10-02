@@ -1,7 +1,8 @@
 import shioaji as sj
 from textual.app import App
 from textual.widgets import ScrollView
-from sjtop.side import ContractsTree
+from sjtop.dashboard import ContractDashBoard
+from sjtop.side import ContractsTree, ContractClick
 
 from sjtop.status_panel import StatusPanel
 
@@ -26,8 +27,14 @@ class SJTop(App):
         self.tree = ContractsTree(self.api.Contracts, "contracts")
         self.side = ScrollView(self.tree, name="sidebar")
         await self.view.dock(self.side, edge="left", size=25)
+        self.dashbaord = ContractDashBoard("dashboard", self.api)
+        await self.view.dock(self.dashbaord, edge="right")
 
     def on_api_session_event(self, resp_code, event_code, info, event):
         self.status_panel.fit(
             f"Response Code: {resp_code} | Event Code: {event_code} | Info: {info} | Event: {event}"
         )
+
+    async def handle_contract_click(self, message: ContractClick) -> None:
+        """A message sent by the contract tree when a contract is clicked."""
+        self.dashbaord.change_contract(message.contract)

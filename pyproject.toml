@@ -5,10 +5,14 @@ description = ""
 authors = ["Yvictor"]
 license = "MIT"
 
+[tool.poetry.scripts]
+sjtop = 'sjtop.__main__:main'
+
 [tool.poetry.dependencies]
 python = "^3.7"
 textual = "^0.1.12"
 shioaji = "^0.3.3-alpha.3"
+pandas = ">=0.24.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"
