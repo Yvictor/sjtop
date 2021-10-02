@@ -1,5 +1,7 @@
 import shioaji as sj
 from textual.app import App
+from textual.widgets import ScrollView
+from sjtop.side import ContractsTree
 
 from sjtop.status_panel import StatusPanel
 
@@ -11,7 +13,7 @@ class SJTop(App):
         """Sent before going in to application mode."""
 
         # Bind our basic keys
-        # await self.bind("b", "view.toggle('sidebar')", "Toggle sidebar")
+        await self.bind("b", "view.toggle('sidebar')", "Toggle sidebar")
         await self.bind("q", "quit", "Quit")
 
     async def on_mount(self) -> None:
@@ -21,8 +23,9 @@ class SJTop(App):
         self.api.quote.set_event_callback(self.on_api_session_event)
         await self.view.dock(self.status_panel, edge="bottom", size=3)
         self.api.login("PAPIUSER01", "2222")
-        
-
+        self.tree = ContractsTree(self.api.Contracts, "contracts")
+        self.side = ScrollView(self.tree, name="sidebar")
+        await self.view.dock(self.side, edge="left", size=25)
 
     def on_api_session_event(self, resp_code, event_code, info, event):
         self.status_panel.fit(
