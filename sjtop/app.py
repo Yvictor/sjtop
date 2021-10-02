@@ -1,6 +1,11 @@
+import shioaji as sj
 from textual.app import App
 
+from sjtop.status_panel import StatusPanel
+
+
 class SJTop(App):
+    api: sj.Shioaji
 
     async def on_load(self) -> None:
         """Sent before going in to application mode."""
@@ -11,4 +16,15 @@ class SJTop(App):
 
     async def on_mount(self) -> None:
         """Call after terminal goes in to application mode"""
-        pass
+        self.api = sj.Shioaji(simulation=True)
+        self.status_panel = StatusPanel("status_panel", "logining...")
+        self.api.quote.set_event_callback(self.on_api_session_event)
+        await self.view.dock(self.status_panel, edge="bottom", size=3)
+        self.api.login("PAPIUSER01", "2222")
+        
+
+
+    def on_api_session_event(self, resp_code, event_code, info, event):
+        self.status_panel.fit(
+            f"Response Code: {resp_code} | Event Code: {event_code} | Info: {info} | Event: {event}"
+        )
