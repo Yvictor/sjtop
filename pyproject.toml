@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "sjtop"
-version = "0.1.1"
+version = "0.1.2"
 homepage = "https://github.com/yvictor/sjtop"
 description = "Terminal User Interface for Shioaji"
 authors = ["Yvictor <yvictor3141@gmail.com>"]
@@ -13,7 +13,7 @@ sjtop = 'sjtop.__main__:main'
 [tool.poetry.dependencies]
 python = "^3.7"
 textual = "^0.1.12"
-shioaji = "^0.3.3-alpha.3"
+shioaji = ">=0.3.3.dev3"
 pandas = ">=0.24.1"
 
 [tool.poetry.dev-dependencies]
