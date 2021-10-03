@@ -15,6 +15,7 @@ from rich.console import Group
 class ContractDashBoard(Widget):
     def __init__(self, name: str, api: sj.Shioaji) -> None:
         self.api = api
+        self.modify: bool = False
         super().__init__(name=name)
 
     def change_contract(self, contract: sj.contracts.Contract):
@@ -30,6 +31,7 @@ class ContractDashBoard(Widget):
         )
         self.api.quote.subscribe(self.contract, QuoteType.Tick, version=QuoteVersion.v1)
         self.table.title = self.contract.symbol
+        self.modify = True
 
     def on_mount(self):
         self.contract = min(
@@ -100,65 +102,65 @@ class ContractDashBoard(Widget):
         if cond.sum():
             self.df.loc[cond, "TickPrice"] = tick.close
             self.df.loc[cond, "TickVolume"] = tick.volume
-        # self.refresh()
+        self.modify = True
 
     def on_fop_v1_bidask(self, exchange: sj.Exchange, quote: sj.BidAskFOPv1):
         self.df.loc[0:4, "AskPrice"] = quote.ask_price[::-1]
         self.df.loc[0:4, "AskVolume"] = quote.ask_volume[::-1]
         self.df.loc[5:10, "BidPrice"] = quote.bid_price
         self.df.loc[5:10, "BidVolume"] = quote.bid_volume
-        # self.refresh()
+        self.modify = True
 
     def render(self):
-        for col in self.table.columns:
-            col._cells = []
-        self.table.rows = []
+        if self.modify:
+            self.modify = False
+            for col in self.table.columns:
+                col._cells = []
+            self.table.rows = []
 
-        barsize = max(
-            self.df["BidVolume"].cumsum().max(), self.df["AskVolume"].cumsum().max()
-        )
-        bidcumvol = self.df["BidVolume"].cumsum()
-        askcumvol = self.df.loc[::-1, "AskVolume"].cumsum().loc[::-1]
-        bidsum = self.df["BidVolume"].sum()
-        asksum = self.df["AskVolume"].sum()
-        self.total_bar.size = bidsum + asksum
-        # self.total_bar.begin = 0
-        self.total_bar.end = asksum
+            barsize = max(
+                self.df["BidVolume"].cumsum().max(), self.df["AskVolume"].cumsum().max()
+            )
+            bidcumvol = self.df["BidVolume"].cumsum()
+            askcumvol = self.df.loc[::-1, "AskVolume"].cumsum().loc[::-1]
+            bidsum = self.df["BidVolume"].sum()
+            asksum = self.df["AskVolume"].sum()
+            self.total_bar.size = bidsum + asksum
+            self.total_bar.end = asksum
 
-        for idx in range(10):
-            bar = self.bars[idx]
-            bar.size = barsize
-            bar.begin = 0 if idx < 5 else barsize - bidcumvol[idx]
-            bar.end = askcumvol[idx] if idx < 5 else barsize
+            for idx in range(10):
+                bar = self.bars[idx]
+                bar.size = barsize
+                bar.begin = 0 if idx < 5 else barsize - bidcumvol[idx]
+                bar.end = askcumvol[idx] if idx < 5 else barsize
+                self.table.add_row(
+                    *[
+                        bar,  # "" if idx < 5 else bar,
+                        *self.df.loc[idx].map(lambda x: str(x) if x else "").tolist(),
+                        # bar if idx < 5 else "",
+                    ],
+                    style="green" if idx < 5 else "red",
+                )
+            row_color = "green" if self.cur_tick.tick_type == 1 else "red"
+            self.deal_side_bar.end = self.cur_tick.bid_side_total_vol / (
+                self.cur_tick.ask_side_total_vol + self.cur_tick.bid_side_total_vol
+            )
             self.table.add_row(
                 *[
-                    bar,  # "" if idx < 5 else bar,
-                    *self.df.loc[idx].map(lambda x: str(x) if x else "").tolist(),
-                    # bar if idx < 5 else "",
-                ],
-                style="green" if idx < 5 else "red",
-            )
-        row_color = "green" if self.cur_tick.tick_type == 1 else "red"
-        self.deal_side_bar.end = self.cur_tick.bid_side_total_vol / (
-            self.cur_tick.ask_side_total_vol + self.cur_tick.bid_side_total_vol
-        )
-        self.table.add_row(
-            *[
-                self.total_bar,
-                Text(str(bidsum), style="red"),
-                "",
-                Text(str(self.cur_tick.close), style=row_color),
-                # Text(str(self.cur_tick.volume), style=row_color),
-                Group(
-                    Text(
-                        f"{self.cur_tick.volume}          {self.deal_side_bar.end * 100:.4f}%",
-                        style=row_color,
+                    self.total_bar,
+                    Text(str(bidsum), style="red"),
+                    "",
+                    Text(str(self.cur_tick.close), style=row_color),
+                    # Text(str(self.cur_tick.volume), style=row_color),
+                    Group(
+                        Text(
+                            f"{self.cur_tick.volume}          {self.deal_side_bar.end * 100:.4f}%",
+                            style=row_color,
+                        ),
+                        self.deal_side_bar,
                     ),
-                    self.deal_side_bar,
-                ),
-                "",
-                Text(str(asksum), style="green"),
-            ],
-            # style="green" if idx < 5 else "red",
-        )
+                    "",
+                    Text(str(asksum), style="green"),
+                ],
+            )
         return self.table
