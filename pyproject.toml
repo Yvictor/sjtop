@@ -15,6 +15,7 @@ python = "^3.7"
 textual = "^0.1.12"
 shioaji = ">=0.3.3.dev3"
 pandas = ">=0.24.1"
+pytest-freezegun = "^0.4.2"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"
