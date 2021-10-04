@@ -39,6 +39,8 @@ class ContractDashBoard(Widget):
         )
         self.api.quote.set_on_tick_fop_v1_callback(self.on_fop_v1_tick)
         self.api.quote.set_on_bidask_fop_v1_callback(self.on_fop_v1_bidask)
+        self.api.quote.set_on_tick_stk_v1_callback(self.on_stk_v1_tick)
+        self.api.quote.set_on_bidask_stk_v1_callback(self.on_stk_v1_bidask)
         self.api.quote.subscribe(
             self.contract, QuoteType.BidAsk, version=QuoteVersion.v1
         )
@@ -94,6 +96,25 @@ class ContractDashBoard(Widget):
 
         self.set_interval(0.0075, self.refresh)
 
+    def on_stk_v1_tick(self, exchange: sj.Exchange, tick: sj.TickSTKv1):
+        self.cur_tick = tick
+        cond = (self.df.BidPrice == tick.close) | (self.df.AskPrice == tick.close)
+        self.df.loc[~cond, "TickPrice"] = 0
+        self.df.loc[~cond, "TickVolume"] = 0
+        if cond.sum():
+            self.df.loc[cond, "TickPrice"] = tick.close
+            self.df.loc[cond, "TickVolume"] = tick.volume
+        self.modify = True
+        # self.refresh()
+
+    def on_stk_v1_bidask(self, exchange: sj.Exchange, quote: sj.BidAskSTKv1):
+        self.df.loc[0:4, "AskPrice"] = quote.ask_price[::-1]
+        self.df.loc[0:4, "AskVolume"] = quote.ask_volume[::-1]
+        self.df.loc[5:10, "BidPrice"] = quote.bid_price
+        self.df.loc[5:10, "BidVolume"] = quote.bid_volume
+        self.modify = True
+        # self.refresh()
+
     def on_fop_v1_tick(self, exchange: sj.Exchange, tick: sj.TickFOPv1):
         self.cur_tick = tick
         cond = (self.df.BidPrice == tick.close) | (self.df.AskPrice == tick.close)
@@ -103,6 +124,7 @@ class ContractDashBoard(Widget):
             self.df.loc[cond, "TickPrice"] = tick.close
             self.df.loc[cond, "TickVolume"] = tick.volume
         self.modify = True
+        # self.refresh()
 
     def on_fop_v1_bidask(self, exchange: sj.Exchange, quote: sj.BidAskFOPv1):
         self.df.loc[0:4, "AskPrice"] = quote.ask_price[::-1]
@@ -110,6 +132,7 @@ class ContractDashBoard(Widget):
         self.df.loc[5:10, "BidPrice"] = quote.bid_price
         self.df.loc[5:10, "BidVolume"] = quote.bid_volume
         self.modify = True
+        # self.refresh()
 
     def render(self):
         if self.modify:
@@ -133,15 +156,23 @@ class ContractDashBoard(Widget):
                 bar.size = barsize
                 bar.begin = 0 if idx < 5 else barsize - bidcumvol[idx]
                 bar.end = askcumvol[idx] if idx < 5 else barsize
+                row_color = "green" if idx < 5 else "red"
                 self.table.add_row(
                     *[
                         bar,  # "" if idx < 5 else bar,
-                        *self.df.loc[idx].map(lambda x: str(x) if x else "").tolist(),
+                        *[
+                            Text(str(v if v else ""))
+                            if i != 2 and i != 3
+                            else Text(
+                                str(v if v else ""), style="red" if idx < 5 else "green"
+                            )
+                            for i, v in enumerate(self.df.loc[idx])
+                        ],
                         # bar if idx < 5 else "",
                     ],
-                    style="green" if idx < 5 else "red",
+                    style=row_color,
                 )
-            row_color = "green" if self.cur_tick.tick_type == 1 else "red"
+            row_color = "red" if self.cur_tick.tick_type == 1 else "green"
             self.deal_side_bar.end = self.cur_tick.bid_side_total_vol / (
                 self.cur_tick.ask_side_total_vol + self.cur_tick.bid_side_total_vol
             )
