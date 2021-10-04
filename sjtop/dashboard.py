@@ -52,14 +52,12 @@ class ContractDashBoard(Widget):
             pad_edge=False,
         )
         self.df = pd.DataFrame(
-            np.zeros((10, 6)),
+            np.zeros((10, 4)),
             columns=[
-                "BidVolume",
-                "BidPrice",
+                "BidAskVolume",
+                "BidAskPrice",
                 "TickPrice",
                 "TickVolume",
-                "AskPrice",
-                "AskVolume",
             ],
         )
         self.table.add_column("")
@@ -69,8 +67,8 @@ class ContractDashBoard(Widget):
         self.bars = [
             Bar(100, 0, 0, color="green" if i < 5 else "red") for i in range(10)
         ]
-        self.total_bar = Bar(100, 0, 50, color="green", bgcolor="red")
-        self.deal_side_bar = Bar(1, 0.0, 0.5, color="red", bgcolor="green")
+        self.total_bar = Bar(100, 0, 50, color="red", bgcolor="green")
+        self.deal_side_bar = Bar(1, 0.0, 0.5, color="red", bgcolor="green", width=20)
 
         self.cur_tick = sj.TickFOPv1(
             code=self.contract.code,
@@ -98,7 +96,7 @@ class ContractDashBoard(Widget):
 
     def on_stk_v1_tick(self, exchange: sj.Exchange, tick: sj.TickSTKv1):
         self.cur_tick = tick
-        cond = (self.df.BidPrice == tick.close) | (self.df.AskPrice == tick.close)
+        cond = self.df.BidAskPrice == tick.close
         self.df.loc[~cond, "TickPrice"] = 0
         self.df.loc[~cond, "TickVolume"] = 0
         if cond.sum():
@@ -108,16 +106,16 @@ class ContractDashBoard(Widget):
         # self.refresh()
 
     def on_stk_v1_bidask(self, exchange: sj.Exchange, quote: sj.BidAskSTKv1):
-        self.df.loc[0:4, "AskPrice"] = quote.ask_price[::-1]
-        self.df.loc[0:4, "AskVolume"] = quote.ask_volume[::-1]
-        self.df.loc[5:10, "BidPrice"] = quote.bid_price
-        self.df.loc[5:10, "BidVolume"] = quote.bid_volume
+        self.df.loc[0:4, "BidAskPrice"] = quote.ask_price[::-1]
+        self.df.loc[0:4, "BidAskVolume"] = quote.ask_volume[::-1]
+        self.df.loc[5:10, "BidAskPrice"] = quote.bid_price
+        self.df.loc[5:10, "BidAskVolume"] = quote.bid_volume
         self.modify = True
         # self.refresh()
 
     def on_fop_v1_tick(self, exchange: sj.Exchange, tick: sj.TickFOPv1):
         self.cur_tick = tick
-        cond = (self.df.BidPrice == tick.close) | (self.df.AskPrice == tick.close)
+        cond = self.df.BidAskPrice == tick.close
         self.df.loc[~cond, "TickPrice"] = 0
         self.df.loc[~cond, "TickVolume"] = 0
         if cond.sum():
@@ -127,10 +125,10 @@ class ContractDashBoard(Widget):
         # self.refresh()
 
     def on_fop_v1_bidask(self, exchange: sj.Exchange, quote: sj.BidAskFOPv1):
-        self.df.loc[0:4, "AskPrice"] = quote.ask_price[::-1]
-        self.df.loc[0:4, "AskVolume"] = quote.ask_volume[::-1]
-        self.df.loc[5:10, "BidPrice"] = quote.bid_price
-        self.df.loc[5:10, "BidVolume"] = quote.bid_volume
+        self.df.loc[0:4, "BidAskPrice"] = quote.ask_price[::-1]
+        self.df.loc[0:4, "BidAskVolume"] = quote.ask_volume[::-1]
+        self.df.loc[5:10, "BidAskPrice"] = quote.bid_price
+        self.df.loc[5:10, "BidAskVolume"] = quote.bid_volume
         self.modify = True
         # self.refresh()
 
@@ -140,29 +138,27 @@ class ContractDashBoard(Widget):
             for col in self.table.columns:
                 col._cells = []
             self.table.rows = []
-
-            barsize = max(
-                self.df["BidVolume"].cumsum().max(), self.df["AskVolume"].cumsum().max()
-            )
-            bidcumvol = self.df["BidVolume"].cumsum()
-            askcumvol = self.df.loc[::-1, "AskVolume"].cumsum().loc[::-1]
-            bidsum = self.df["BidVolume"].sum()
-            asksum = self.df["AskVolume"].sum()
+            askcumvol = self.df.loc[4::-1, "BidAskVolume"].cumsum().loc[::-1]
+            bidcumvol = self.df.loc[5:10, "BidAskVolume"].cumsum()
+            barsize = max(askcumvol.max(), bidcumvol.max())
+            bidsum = self.df.loc[5:10, "BidAskVolume"].sum()
+            asksum = self.df.loc[0:4, "BidAskVolume"].sum()
             self.total_bar.size = bidsum + asksum
-            self.total_bar.end = asksum
+            self.total_bar.end = bidsum
 
             for idx in range(10):
                 bar = self.bars[idx]
                 bar.size = barsize
-                bar.begin = 0 if idx < 5 else barsize - bidcumvol[idx]
-                bar.end = askcumvol[idx] if idx < 5 else barsize
+                bar.begin = barsize - askcumvol.loc[idx] if idx < 5 else 0
+                bar.end = barsize if idx < 5 else bidcumvol[idx]
                 row_color = "green" if idx < 5 else "red"
+                row_justify = "right" if idx < 5 else "left"
                 self.table.add_row(
                     *[
                         bar,  # "" if idx < 5 else bar,
                         *[
-                            Text(str(v if v else ""))
-                            if i != 2 and i != 3
+                            Text(str(v if v else ""), justify=row_justify)
+                            if i < 2
                             else Text(
                                 str(v if v else ""), style="red" if idx < 5 else "green"
                             )
@@ -179,7 +175,12 @@ class ContractDashBoard(Widget):
             self.table.add_row(
                 *[
                     self.total_bar,
-                    Text(str(bidsum), style="red"),
+                    Text.assemble(
+                        (str(bidsum), "red"),
+                        "   ",
+                        (str(asksum), "green"),
+                        justify="right",
+                    ),
                     "",
                     Text(str(self.cur_tick.close), style=row_color),
                     # Text(str(self.cur_tick.volume), style=row_color),
@@ -190,8 +191,6 @@ class ContractDashBoard(Widget):
                         ),
                         self.deal_side_bar,
                     ),
-                    "",
-                    Text(str(asksum), style="green"),
                 ],
             )
         return self.table
