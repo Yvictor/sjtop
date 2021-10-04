@@ -24,6 +24,7 @@ class TickViewer(Widget):
         self.n = 15
         for col in self.cols:
             self.table.add_column(col)
+        self.loop = asyncio.get_event_loop()
         super().__init__(name=name)
 
     def on_mount(self):
