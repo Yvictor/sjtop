@@ -14,38 +14,11 @@ from rich.console import Group
 
 
 class ContractDashBoard(Widget):
-    def __init__(self, name: str, api: sj.Shioaji) -> None:
-        self.api = api
-        self.modify: bool = False
-        super().__init__(name=name)
-
-    def change_contract(self, contract: sj.contracts.Contract):
-        self.api.quote.unsubscribe(
-            self.contract, QuoteType.BidAsk, version=QuoteVersion.v1
-        )
-        self.api.quote.unsubscribe(
-            self.contract, QuoteType.Tick, version=QuoteVersion.v1
-        )
+    def __init__(
+        self, name: str, contract: sj.contracts.Contract
+    ) -> None:
         self.contract = contract
-        self.api.quote.subscribe(
-            self.contract, QuoteType.BidAsk, version=QuoteVersion.v1
-        )
-        self.api.quote.subscribe(self.contract, QuoteType.Tick, version=QuoteVersion.v1)
-        self.table.title = self.contract.symbol
-        self.modify = True
-
-    def on_mount(self):
-        self.contract = min(
-            [c for c in self.api.Contracts.Futures.TXF], key=lambda c: c.symbol
-        )
-        self.api.quote.set_on_tick_fop_v1_callback(self.on_fop_v1_tick)
-        self.api.quote.set_on_bidask_fop_v1_callback(self.on_fop_v1_bidask)
-        self.api.quote.set_on_tick_stk_v1_callback(self.on_stk_v1_tick)
-        self.api.quote.set_on_bidask_stk_v1_callback(self.on_stk_v1_bidask)
-        self.api.quote.subscribe(
-            self.contract, QuoteType.BidAsk, version=QuoteVersion.v1
-        )
-        self.api.quote.subscribe(self.contract, QuoteType.Tick, version=QuoteVersion.v1)
+        self.modify: bool = False
         self.table = Table(
             title=self.contract.symbol,
             show_header=True,
@@ -53,18 +26,17 @@ class ContractDashBoard(Widget):
             pad_edge=False,
         )
         self.df = pd.DataFrame(
-            np.zeros((10, 4)),
+            np.zeros((10, 2)),
             columns=[
                 "BidAskVolume",
                 "BidAskPrice",
-                "TickPrice",
-                "TickVolume",
+                # "TickPrice",
+                # "TickVolume",
             ],
         )
         self.table.add_column("")
         for col in self.df.columns:
             self.table.add_column(col)
-        # self.table.add_column("")
         self.bars = [
             Bar(100, 0, 0, color="green" if i < 5 else "red") for i in range(10)
         ]
@@ -92,18 +64,19 @@ class ContractDashBoard(Widget):
             pct_chg=Decimal("0"),
             simtrade=1,
         )
-        self.loop = asyncio.get_event_loop()
+        super().__init__(name=name)
 
+    def change_contract(self, contract: sj.contracts.Contract):
+        self.contract = contract
+        self.table.title = self.contract.symbol
+        self.modify = True
+
+    def on_mount(self):
+        self.loop = asyncio.get_event_loop()
         # self.set_interval(0.0075, self.refresh)
 
     def on_stk_v1_tick(self, exchange: sj.Exchange, tick: sj.TickSTKv1):
         self.cur_tick = tick
-        cond = self.df.BidAskPrice == tick.close
-        self.df.loc[~cond, "TickPrice"] = 0
-        self.df.loc[~cond, "TickVolume"] = 0
-        if cond.sum():
-            self.df.loc[cond, "TickPrice"] = tick.close
-            self.df.loc[cond, "TickVolume"] = tick.volume
         self.modify = True
         self.loop.call_soon_threadsafe(self.refresh)
 
@@ -117,12 +90,6 @@ class ContractDashBoard(Widget):
 
     def on_fop_v1_tick(self, exchange: sj.Exchange, tick: sj.TickFOPv1):
         self.cur_tick = tick
-        cond = self.df.BidAskPrice == tick.close
-        self.df.loc[~cond, "TickPrice"] = 0
-        self.df.loc[~cond, "TickVolume"] = 0
-        if cond.sum():
-            self.df.loc[cond, "TickPrice"] = tick.close
-            self.df.loc[cond, "TickVolume"] = tick.volume
         self.modify = True
         self.loop.call_soon_threadsafe(self.refresh)
 
@@ -157,41 +124,43 @@ class ContractDashBoard(Widget):
                 row_justify = "right" if idx < 5 else "left"
                 self.table.add_row(
                     *[
-                        bar,  # "" if idx < 5 else bar,
+                        bar,
                         *[
                             Text(str(v if v else ""), justify=row_justify)
-                            if i < 2
-                            else Text(
-                                str(v if v else ""), style="red" if idx < 5 else "green"
-                            )
-                            for i, v in enumerate(self.df.loc[idx])
+                            for v in self.df.loc[idx]
                         ],
-                        # bar if idx < 5 else "",
                     ],
                     style=row_color,
                 )
             row_color = "red" if self.cur_tick.tick_type == 1 else "green"
+            row_justify = "right" if self.cur_tick.tick_type == 1 else "left"
             self.deal_side_bar.end = self.cur_tick.bid_side_total_vol / (
                 self.cur_tick.ask_side_total_vol + self.cur_tick.bid_side_total_vol
             )
             self.table.add_row(
                 *[
                     self.total_bar,
-                    Text.assemble(
-                        (str(bidsum), "red"),
-                        "   ",
-                        (str(asksum), "green"),
-                        justify="right",
+                    Group(
+                        Text(str(asksum), style="green", justify="right"),
+                        Text(str(bidsum), style="red", justify="left"),
                     ),
-                    "",
-                    Text(str(self.cur_tick.close), style=row_color),
-                    # Text(str(self.cur_tick.volume), style=row_color),
                     Group(
                         Text(
-                            f"{self.cur_tick.volume}          {self.deal_side_bar.end * 100:.4f}%",
+                            str(self.cur_tick.close),
                             style=row_color,
+                            justify=row_justify,
+                        ),
+                        Text(
+                            str(self.cur_tick.volume),
+                            style=row_color,
+                            justify=row_justify,
                         ),
                         self.deal_side_bar,
+                        Text(
+                            f"{self.deal_side_bar.end * 100:.4f}%",
+                            style=row_color,
+                            justify="center",
+                        ),
                     ),
                 ],
             )
