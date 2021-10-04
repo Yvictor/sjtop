@@ -1,3 +1,4 @@
+import asyncio
 import shioaji as sj
 import pandas as pd
 import numpy as np
@@ -91,8 +92,9 @@ class ContractDashBoard(Widget):
             pct_chg=Decimal("0"),
             simtrade=1,
         )
+        self.loop = asyncio.get_event_loop()
 
-        self.set_interval(0.0075, self.refresh)
+        # self.set_interval(0.0075, self.refresh)
 
     def on_stk_v1_tick(self, exchange: sj.Exchange, tick: sj.TickSTKv1):
         self.cur_tick = tick
@@ -103,7 +105,7 @@ class ContractDashBoard(Widget):
             self.df.loc[cond, "TickPrice"] = tick.close
             self.df.loc[cond, "TickVolume"] = tick.volume
         self.modify = True
-        # self.refresh()
+        self.loop.call_soon_threadsafe(self.refresh)
 
     def on_stk_v1_bidask(self, exchange: sj.Exchange, quote: sj.BidAskSTKv1):
         self.df.loc[0:4, "BidAskPrice"] = quote.ask_price[::-1]
@@ -111,7 +113,7 @@ class ContractDashBoard(Widget):
         self.df.loc[5:10, "BidAskPrice"] = quote.bid_price
         self.df.loc[5:10, "BidAskVolume"] = quote.bid_volume
         self.modify = True
-        # self.refresh()
+        self.loop.call_soon_threadsafe(self.refresh)
 
     def on_fop_v1_tick(self, exchange: sj.Exchange, tick: sj.TickFOPv1):
         self.cur_tick = tick
@@ -122,7 +124,7 @@ class ContractDashBoard(Widget):
             self.df.loc[cond, "TickPrice"] = tick.close
             self.df.loc[cond, "TickVolume"] = tick.volume
         self.modify = True
-        # self.refresh()
+        self.loop.call_soon_threadsafe(self.refresh)
 
     def on_fop_v1_bidask(self, exchange: sj.Exchange, quote: sj.BidAskFOPv1):
         self.df.loc[0:4, "BidAskPrice"] = quote.ask_price[::-1]
@@ -130,7 +132,7 @@ class ContractDashBoard(Widget):
         self.df.loc[5:10, "BidAskPrice"] = quote.bid_price
         self.df.loc[5:10, "BidAskVolume"] = quote.bid_volume
         self.modify = True
-        # self.refresh()
+        self.loop.call_soon_threadsafe(self.refresh)
 
     def render(self):
         if self.modify:
